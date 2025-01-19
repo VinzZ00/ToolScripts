@@ -80,6 +80,13 @@ while cap.isOpened():
             if recording:
                 cropped_frames.append(cropped_hand_resized)
 
+                # Save the landmarks to a text file
+                keypoints_file = f"{dataset_path}/{current_letter}/{current_letter}_{index}_keypoints.txt"
+                with open(keypoints_file, "a") as file:
+                    # Write x, y, z coordinates of each hand landmark
+                    for landmark in landmarks.landmark:
+                        file.write(f"{landmark.x} {landmark.y} {landmark.z}\n")
+
     # Countdown logic when recording
     if recording:
         elapsed_time = time.time() - start_time
