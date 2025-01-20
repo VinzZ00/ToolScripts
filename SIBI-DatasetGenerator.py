@@ -61,22 +61,13 @@ while cap.isOpened():
     # Draw hand landmarks if hands are detected
     if results.multi_hand_landmarks:
         for landmarks in results.multi_hand_landmarks:
-            # Draw landmarks (optional, can remove)
-            mp_draw.draw_landmarks(frame, landmarks, mp_hands.HAND_CONNECTIONS)
-
-            # Crop the hand with padding
+            # Crop the hand with padding (before any drawing)
             cropped_hand, (x_min, y_min, x_max, y_max) = crop_hand_with_padding(frame, landmarks.landmark)
 
             # Resize the cropped hand to a fixed size (e.g., 224x224 for input to a model)
             cropped_hand_resized = cv2.resize(cropped_hand, (224, 224))
 
-            # Show cropped hand preview (during both preview and recording)
-            cv2.imshow("Cropped Hand", cropped_hand_resized)
-
-            # Draw bounding box with padding on the original frame
-            cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-
-            # Store cropped frames for recording
+            # Store cropped frames for recording (clean version without annotations)
             if recording:
                 cropped_frames.append(cropped_hand_resized)
 
@@ -86,6 +77,13 @@ while cap.isOpened():
                     # Write x, y, z coordinates of each hand landmark
                     for landmark in landmarks.landmark:
                         file.write(f"{landmark.x} {landmark.y} {landmark.z}\n")
+
+            # Draw annotations for preview
+            mp_draw.draw_landmarks(frame, landmarks, mp_hands.HAND_CONNECTIONS)
+            cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+
+            # Show cropped hand preview
+            cv2.imshow("Cropped Hand", cropped_hand_resized)
 
     # Countdown logic when recording
     if recording:
@@ -121,6 +119,7 @@ while cap.isOpened():
     if not recording:
         cv2.putText(frame, f"Press 'C' to start recording for {current_letter}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
+    # Display the preview window
     cv2.imshow("Hand Gesture Recorder", frame)
 
     # Wait for user input to capture the gesture
