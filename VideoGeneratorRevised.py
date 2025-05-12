@@ -116,9 +116,49 @@ def generateVideo():
     cap.release()
     cv2.destroyAllWindows()
 
+def AugmentFlipVideo(videoPath):
+    video = cv2.VideoCapture(videoPath)
+    if not video.isOpened():
+        print("Error: Could not open video.")
+    
+    # Get video properties
+    width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps    = cap.get(cv2.CAP_PROP_FPS)
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for .mp4
+
+    # Generate output path by appending '_flipped' before extension
+    base, ext = os.path.splitext(videoPath)
+    output_path = f"{base}_flipped{ext}"
+
+    # Create VideoWriter object
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
+    print(f"Processing video...\nInput: {input_path}\nOutput: {output_path}")
+
+    # Read and flip each frame
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        flipped_frame = cv2.flip(frame, 1)  # Flip horizontally
+        out.write(flipped_frame)
+
+    # Release everything
+    cap.release()
+    out.release()
+    listOfPrimeVideoPath.append(output_path)
+    
+    print("Video processing completed.")
 
 if __name__ == "__main__":
     generateVideo()
+    isNeedFlip = input('need flip? (Y or N)')
 
+    if isNeedFlip == 'Y':
+        for video in listOfPrimeVideoPath:
+            AugmentFlipVideo(video)
+            
     for video in listOfPrimeVideoPath:
         kpExtract.extract_hand_keypoints(video, video.replace("-prime.mp4", "-prime.txt"))
