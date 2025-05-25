@@ -5,7 +5,7 @@ import KeypointExtractor as kpExtract
 
 
 listOfPrimeVideoPath = []
-
+listOfCroppedVideoPath = []
 # Function to crop the hand from the frame with padding
 def crop_hand_with_padding(frame, landmarks, padding=20):
     x_min = min([landmark.x for landmark in landmarks]) * frame.shape[1]
@@ -31,14 +31,13 @@ def generateVideo():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
     cap.set(cv2.CAP_PROP_FPS, 30)
 
-    dataset_path = "dataset-Elvin"
-    letters = 'JZ'
+    dataset_path = "dataset-26-May-2025"
+    letters = 'ABJZ'
     
     for letter in letters:
-        indexChar = 1
         os.makedirs(f"{dataset_path}/{letter}", exist_ok=True)
 
-    index = 1
+    index = 0
     letter_index = 0
     current_letter = letters[letter_index]
     recording = False
@@ -82,7 +81,7 @@ def generateVideo():
                 fourcc = cv2.VideoWriter_fourcc(*'MP4V')
                 out = cv2.VideoWriter(f'{video_filename}.mp4', fourcc, 30, (224, 224))
                 primeOut = cv2.VideoWriter(f'{video_filename}-prime.mp4', fourcc, 30, (1280, 720))
-                
+                listOfCroppedVideoPath.append(f'{video_filename}.mp4')
                 listOfPrimeVideoPath.append(f'{video_filename}-prime.mp4')
 
                 for frame in cropped_frames: out.write(frame)
@@ -92,7 +91,7 @@ def generateVideo():
                 out.release()
                 index += 1
 
-                if index % 5 == 0:
+                if index % 3 == 0:
                     letter_index += 1
                     if letter_index < len(letters):
                         current_letter = letters[letter_index]
@@ -117,8 +116,8 @@ def generateVideo():
     cv2.destroyAllWindows()
 
 def AugmentFlipVideo(videoPath):
-    video = cv2.VideoCapture(videoPath)
-    if not video.isOpened():
+    cap = cv2.VideoCapture(videoPath)
+    if not cap.isOpened():
         print("Error: Could not open video.")
     
     # Get video properties
@@ -134,7 +133,7 @@ def AugmentFlipVideo(videoPath):
     # Create VideoWriter object
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
-    print(f"Processing video...\nInput: {input_path}\nOutput: {output_path}")
+    print(f"Processing video...\nInput: {videoPath}\nOutput: {output_path}")
 
     # Read and flip each frame
     while True:
@@ -148,17 +147,14 @@ def AugmentFlipVideo(videoPath):
     # Release everything
     cap.release()
     out.release()
-    listOfPrimeVideoPath.append(output_path)
     
     print("Video processing completed.")
 
 if __name__ == "__main__":
     generateVideo()
-    isNeedFlip = input('need flip? (Y or N)')
+    isAugment = True
+    for croppedVideo in listOfCroppedVideoPath:
+        AugmentFlipVideo(croppedVideo)
 
-    if isNeedFlip == 'Y':
-        for video in listOfPrimeVideoPath:
-            AugmentFlipVideo(video)
-            
     for video in listOfPrimeVideoPath:
-        kpExtract.extract_hand_keypoints(video, video.replace("-prime.mp4", "-prime.txt"))
+        kpExtract.extract_hand_keypoints(video, video.replace("-prime.mp4", "-prime.txt"), isFlipped=isAugment)
