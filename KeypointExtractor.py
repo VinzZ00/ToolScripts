@@ -39,11 +39,11 @@ def processFrame(frame_rgb, file):
         for landmarks in results.multi_hand_landmarks:
             frame_data = []
             for landmark in landmarks.landmark:
-                frame_data.extend([landmark.x, landmark.y, landmark.z])
+                frame_data.append([landmark.x, landmark.y])
 
-            # Ensure exactly 63 values for one frame (21 keypoints * 3)
-            if len(frame_data) == 63:
-                file.write(" ".join(map(str, frame_data)) + "\n")
+            # Ensure exactly 21 array values for one frame (21 keypoints array)
+            if len(frame_data) == 21:
+                file.write(",".join(map(str, frame_data)) + "\n")
             else: 
                 print(f"Invalid frame data length: {len(frame_data)}")
                 break
