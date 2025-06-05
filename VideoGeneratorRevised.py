@@ -97,7 +97,6 @@ def generateVideo():
                         current_letter = letters[letter_index]
                     else:
                         break
-
         if not recording:
             cv2.putText(frame, f"will take photo-{index} Press 'C' to start recording for {current_letter}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
@@ -157,4 +156,4 @@ if __name__ == "__main__":
         AugmentFlipVideo(croppedVideo)
 
     for video in listOfPrimeVideoPath:
-        kpExtract.extract_hand_keypoints(video, video.replace("-prime.mp4", "-prime.txt"), isFlipped=isAugment)
+        kpExtract.extract_hand_keypoints(video, video.replace("-prime.mp4", "-prime.csv"), isFlipped=isAugment)
