@@ -2,7 +2,7 @@ import cv2
 import mediapipe as mp
 import os
 import KeypointExtractor as kpExtract
-
+from datetime import date as Date
 
 listOfPrimeVideoPath = []
 listOfCroppedVideoPath = []
@@ -31,7 +31,8 @@ def generateVideo():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
     cap.set(cv2.CAP_PROP_FPS, 30)
 
-    dataset_path = "dataset-26-May-2025"
+    date = Date.today().strftime("%Y-%m-%d")
+    dataset_path = f'dataset_{date}'
     letters = 'ABJZ'
     
     for letter in letters:
@@ -152,6 +153,7 @@ def AugmentFlipVideo(videoPath):
 if __name__ == "__main__":
     generateVideo()
     isAugment = True
+
     for croppedVideo in listOfCroppedVideoPath:
         AugmentFlipVideo(croppedVideo)
 
