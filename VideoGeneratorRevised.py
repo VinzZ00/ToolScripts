@@ -32,10 +32,9 @@ def generateVideo():
     cap.set(cv2.CAP_PROP_FPS, 30)
 
     dataset_path = "dataset-Elvin"
-    letters = 'JZ'
+    letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     
     for letter in letters:
-        indexChar = 1
         os.makedirs(f"{dataset_path}/{letter}", exist_ok=True)
 
     index = 1
@@ -57,22 +56,29 @@ def generateVideo():
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = hands.process(rgb_frame)
 
-        if results.multi_hand_landmarks:
-            for landmarks in results.multi_hand_landmarks:
-
-                if recording: full_frame.append(frame.copy())
-
-                cropped_hand = crop_hand_with_padding(frame, landmarks.landmark)
-                cropped_hand_resized = cv2.resize(cropped_hand, (224, 224))
-
-                if recording: cropped_frames.append(cropped_hand_resized.copy())
-
-                mp_draw.draw_landmarks(frame, landmarks, mp_hands.HAND_CONNECTIONS)
-                cv2.imshow("Cropped Hand", cropped_hand_resized)
+        
 
         if recording:
-            frame_count += 1
-            remaining_frames = TARGET_FRAMES - frame_count
+            if results.multi_hand_landmarks:
+                for landmarks in results.multi_hand_landmarks:
+
+                    if recording: full_frame.append(frame.copy())
+
+                    cropped_hand = crop_hand_with_padding(frame, landmarks.landmark)
+                    cropped_hand_resized = cv2.resize(cropped_hand, (224, 224))
+
+                    if recording: cropped_frames.append(cropped_hand_resized.copy())
+
+                    mp_draw.draw_landmarks(frame, landmarks, mp_hands.HAND_CONNECTIONS)
+                    cv2.imshow("Cropped Hand", cropped_hand_resized)
+                frame_count += 1
+                remaining_frames = TARGET_FRAMES - frame_count
+            else:         
+                cropped_frames = []
+                full_frame = []
+                frame_count = 0
+                remaining_frames = TARGET_FRAMES - frame_count
+
             cv2.putText(frame, f"Recording {current_letter}... {remaining_frames} frames left", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
             if frame_count >= TARGET_FRAMES:

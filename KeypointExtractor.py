@@ -26,10 +26,10 @@ def extract_hand_keypoints(video_path: str, output_path):
                 for landmarks in results.multi_hand_landmarks:
                     frame_data = []
                     for landmark in landmarks.landmark:
-                        frame_data.extend([landmark.x, landmark.y, landmark.z])
+                        frame_data.extend([landmark.x, landmark.y])
 
-                    # Ensure exactly 63 values for one frame (21 keypoints * 3)
-                    if len(frame_data) == 63:
+                    # Ensure exactly 42 values for one frame (21 keypoints * 2)
+                    if len(frame_data) == 42:
                         file.write(" ".join(map(str, frame_data)) + "\n")
                     else: 
                         print(f"Invalid frame data length: {len(frame_data)}")
