@@ -5,6 +5,8 @@ import KeypointExtractor as kpExtract
 
 
 listOfPrimeVideoPath = []
+datasetPlayer = 81
+fileIndex = 63
 
 # Function to crop the hand from the frame with padding
 def crop_hand_with_padding(frame, landmarks, padding=20):
@@ -32,12 +34,12 @@ def generateVideo():
     cap.set(cv2.CAP_PROP_FPS, 30)
 
     dataset_path = "dataset-Elvin"
-    letters = 'A'
+    letters = ['E']
     
     for letter in letters:
         os.makedirs(f"{dataset_path}/{letter}", exist_ok=True)
 
-    index = 1
+    index = fileIndex
     letter_index = 0
     current_letter = letters[letter_index]
     recording = False
@@ -70,21 +72,20 @@ def generateVideo():
         if recording:
             if results.multi_hand_landmarks:
                 for hand_idx, landmarks in enumerate(results.multi_hand_landmarks):
-                    # --- Flipped frame ---
-                    full_frame.append(frame.copy())
-                    cropped_hand = crop_hand_with_padding(frame, landmarks.landmark)
-                    cropped_hand_resized = cv2.resize(cropped_hand, (224, 224))
-                    cropped_frames.append(cropped_hand_resized.copy())
-                    mp_draw.draw_landmarks(frame, landmarks, mp_hands.HAND_CONNECTIONS)
+                    if (results_orig.multi_hand_landmarks and hand_idx < len(results_orig.multi_hand_landmarks) and results.multi_hand_landmarks and hand_idx < len(results.multi_hand_landmarks)):
+                        # --- Flipped frame ---
+                        full_frame.append(frame.copy())
+                        cropped_hand = crop_hand_with_padding(frame, landmarks.landmark)
+                        cropped_hand_resized = cv2.resize(cropped_hand, (224, 224))
+                        cropped_frames.append(cropped_hand_resized.copy())
+                        mp_draw.draw_landmarks(frame, landmarks, mp_hands.HAND_CONNECTIONS)
 
-                    # --- Original (non-flipped) frame ---
-                    if results_orig.multi_hand_landmarks and hand_idx < len(results_orig.multi_hand_landmarks):
+                        # --- Original (non-flipped) frame ---
                         landmarks_orig = results_orig.multi_hand_landmarks[hand_idx]
                         full_frame_orig.append(frame_orig.copy())
                         cropped_hand_orig = crop_hand_with_padding(frame_orig, landmarks_orig.landmark)
                         cropped_hand_orig_resized = cv2.resize(cropped_hand_orig, (224, 224))
                         cropped_frames_orig.append(cropped_hand_orig_resized.copy())
-
                 cv2.imshow("Cropped Hand (Flipped)", cropped_frames[-1] if cropped_frames else frame)
                 
                 if cropped_frames_orig:
@@ -128,7 +129,7 @@ def generateVideo():
                 cropped_frames_orig, full_frame_orig = [], []
 
                 index += 1
-                if index % 3 == 0:
+                if not index < datasetPlayer:
                     letter_index += 1
                     if letter_index < len(letters):
                         current_letter = letters[letter_index]

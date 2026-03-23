@@ -10,7 +10,7 @@ def extract_hand_keypoints(video_path: str, output_path: str):
         os.makedirs(output_dir, exist_ok=True)
 
     mp_hands = mp.solutions.hands
-    hands = mp_hands.Hands(static_image_mode=False, min_detection_confidence=0.7, min_tracking_confidence=0.7)
+    hands = mp_hands.Hands(max_num_hands=1, static_image_mode=False, min_detection_confidence=0.7, min_tracking_confidence=0.7)
 
     with open(output_path, "w") as file:
         while cap.isOpened():
@@ -36,6 +36,6 @@ def processFrame(frame_rgb, file, hands):
             for landmark in landmarks.landmark:
                 frame_data.append([round(landmark.x, 4), round(landmark.y, 4)])
             if len(frame_data) == 21:
-                file.write(",".join(map(str, frame_data)) + "\n")
+                file.write(",".join([f'"{point}"' for point in frame_data]) + "\n")
             else:
                 print(f"Invalid frame data length: {len(frame_data)}")
