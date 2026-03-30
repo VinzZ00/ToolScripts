@@ -10,7 +10,7 @@ def extract_hand_keypoints(video_path: str, output_path: str):
         os.makedirs(output_dir, exist_ok=True)
 
     mp_hands = mp.solutions.hands
-    hands = mp_hands.Hands(max_num_hands=1, static_image_mode=False, min_detection_confidence=0.7, min_tracking_confidence=0.7)
+    hands = mp_hands.Hands(max_num_hands=1, static_image_mode=False, min_detection_confidence=0.6, min_tracking_confidence=0.3)
 
     with open(output_path, "w") as file:
         while cap.isOpened():

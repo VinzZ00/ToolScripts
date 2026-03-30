@@ -2,14 +2,14 @@ import cv2
 import mediapipe as mp
 import os
 import KeypointExtractor as kpExtract
-
+import time
 
 listOfPrimeVideoPath = []
-datasetPlayer = 81
-fileIndex = 63
+datasetPlayer = 261
+fileIndex = 241
 
 # Function to crop the hand from the frame with padding
-def crop_hand_with_padding(frame, landmarks, padding=20):
+def crop_hand_with_padding(frame, landmarks, padding=40):
     x_min = min([landmark.x for landmark in landmarks]) * frame.shape[1]
     x_max = max([landmark.x for landmark in landmarks]) * frame.shape[1]
     y_min = min([landmark.y for landmark in landmarks]) * frame.shape[0]
@@ -25,7 +25,7 @@ def crop_hand_with_padding(frame, landmarks, padding=20):
 
 def generateVideo():
     mp_hands = mp.solutions.hands
-    hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
+    hands = mp_hands.Hands(min_detection_confidence=0.6, min_tracking_confidence=0.3)
     mp_draw = mp.solutions.drawing_utils
 
     cap = cv2.VideoCapture(0)
@@ -34,7 +34,7 @@ def generateVideo():
     cap.set(cv2.CAP_PROP_FPS, 30)
 
     dataset_path = "dataset-Elvin"
-    letters = ['E']
+    letters = ['M']
     
     for letter in letters:
         os.makedirs(f"{dataset_path}/{letter}", exist_ok=True)
@@ -67,7 +67,6 @@ def generateVideo():
         rgb_frame_orig = cv2.cvtColor(frame_orig, cv2.COLOR_BGR2RGB)
         results_orig = hands.process(rgb_frame_orig)
 
-        
 
         if recording:
             if results.multi_hand_landmarks:
@@ -93,11 +92,19 @@ def generateVideo():
                     
                 frame_count += 1
                 remaining_frames = TARGET_FRAMES - frame_count
-            else:         
-                cropped_frames, full_frame = [], []
-                cropped_frames_orig, full_frame_orig = [], []
-                frame_count = 0
-                remaining_frames = TARGET_FRAMES - frame_count
+            else:
+                start = time.time()
+                logPrinted = False
+                if frame_count != 0:
+                    while time.time() - start < 3:
+                        if not logPrinted:
+                            print("wait for 3 second before clearing again")
+                            logPrinted = True
+                    else:       
+                        cropped_frames, full_frame = [], []
+                        cropped_frames_orig, full_frame_orig = [], []
+                        frame_count = 0
+                        remaining_frames = TARGET_FRAMES - frame_count
 
             cv2.putText(frame, f"Recording {current_letter}... {remaining_frames} frames left", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 

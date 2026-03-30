@@ -99,4 +99,4 @@ def check_video_frame_count(
     return results
 
 if __name__ == "__main__":
-    check_video_frame_count("/Users/vinz/Documents/BINUS S2/SLR/handyTools/dataset-Elvin/D", expected_frames=150, extensions=".mp4", recursive=True)
+    check_video_frame_count("/Users/vinz/Documents/BINUS S2/SLR/handyTools/dataset-Elvin/M", expected_frames=150, extensions=".mp4", recursive=True)
