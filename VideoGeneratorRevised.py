@@ -2,12 +2,14 @@ import cv2
 import mediapipe as mp
 import os
 import KeypointExtractor as kpExtract
-
+import time
 
 listOfPrimeVideoPath = []
+datasetPlayer = 281
+fileIndex = 278
 
 # Function to crop the hand from the frame with padding
-def crop_hand_with_padding(frame, landmarks, padding=20):
+def crop_hand_with_padding(frame, landmarks, padding=40):
     x_min = min([landmark.x for landmark in landmarks]) * frame.shape[1]
     x_max = max([landmark.x for landmark in landmarks]) * frame.shape[1]
     y_min = min([landmark.y for landmark in landmarks]) * frame.shape[0]
@@ -23,7 +25,7 @@ def crop_hand_with_padding(frame, landmarks, padding=20):
 
 def generateVideo():
     mp_hands = mp.solutions.hands
-    hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
+    hands = mp_hands.Hands(min_detection_confidence=0.6, min_tracking_confidence=0.3)
     mp_draw = mp.solutions.drawing_utils
 
     cap = cv2.VideoCapture(0)
@@ -32,12 +34,12 @@ def generateVideo():
     cap.set(cv2.CAP_PROP_FPS, 30)
 
     dataset_path = "dataset-Elvin"
-    letters = 'A'
+    letters = ['O']
     
     for letter in letters:
         os.makedirs(f"{dataset_path}/{letter}", exist_ok=True)
 
-    index = 1
+    index = fileIndex
     letter_index = 0
     current_letter = letters[letter_index]
     recording = False
@@ -65,26 +67,24 @@ def generateVideo():
         rgb_frame_orig = cv2.cvtColor(frame_orig, cv2.COLOR_BGR2RGB)
         results_orig = hands.process(rgb_frame_orig)
 
-        
 
         if recording:
             if results.multi_hand_landmarks:
                 for hand_idx, landmarks in enumerate(results.multi_hand_landmarks):
-                    # --- Flipped frame ---
-                    full_frame.append(frame.copy())
-                    cropped_hand = crop_hand_with_padding(frame, landmarks.landmark)
-                    cropped_hand_resized = cv2.resize(cropped_hand, (224, 224))
-                    cropped_frames.append(cropped_hand_resized.copy())
-                    mp_draw.draw_landmarks(frame, landmarks, mp_hands.HAND_CONNECTIONS)
+                    if (results_orig.multi_hand_landmarks and hand_idx < len(results_orig.multi_hand_landmarks) and results.multi_hand_landmarks and hand_idx < len(results.multi_hand_landmarks)):
+                        # --- Flipped frame ---
+                        full_frame.append(frame.copy())
+                        cropped_hand = crop_hand_with_padding(frame, landmarks.landmark)
+                        cropped_hand_resized = cv2.resize(cropped_hand, (224, 224))
+                        cropped_frames.append(cropped_hand_resized.copy())
+                        mp_draw.draw_landmarks(frame, landmarks, mp_hands.HAND_CONNECTIONS)
 
-                    # --- Original (non-flipped) frame ---
-                    if results_orig.multi_hand_landmarks and hand_idx < len(results_orig.multi_hand_landmarks):
+                        # --- Original (non-flipped) frame ---
                         landmarks_orig = results_orig.multi_hand_landmarks[hand_idx]
                         full_frame_orig.append(frame_orig.copy())
                         cropped_hand_orig = crop_hand_with_padding(frame_orig, landmarks_orig.landmark)
                         cropped_hand_orig_resized = cv2.resize(cropped_hand_orig, (224, 224))
                         cropped_frames_orig.append(cropped_hand_orig_resized.copy())
-
                 cv2.imshow("Cropped Hand (Flipped)", cropped_frames[-1] if cropped_frames else frame)
                 
                 if cropped_frames_orig:
@@ -92,11 +92,19 @@ def generateVideo():
                     
                 frame_count += 1
                 remaining_frames = TARGET_FRAMES - frame_count
-            else:         
-                cropped_frames, full_frame = [], []
-                cropped_frames_orig, full_frame_orig = [], []
-                frame_count = 0
-                remaining_frames = TARGET_FRAMES - frame_count
+            else:
+                start = time.time()
+                logPrinted = False
+                if frame_count != 0:
+                    while time.time() - start < 3:
+                        if not logPrinted:
+                            print("wait for 3 second before clearing again")
+                            logPrinted = True
+                    else:       
+                        cropped_frames, full_frame = [], []
+                        cropped_frames_orig, full_frame_orig = [], []
+                        frame_count = 0
+                        remaining_frames = TARGET_FRAMES - frame_count
 
             cv2.putText(frame, f"Recording {current_letter}... {remaining_frames} frames left", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
@@ -128,7 +136,7 @@ def generateVideo():
                 cropped_frames_orig, full_frame_orig = [], []
 
                 index += 1
-                if index % 3 == 0:
+                if not index < datasetPlayer:
                     letter_index += 1
                     if letter_index < len(letters):
                         current_letter = letters[letter_index]
