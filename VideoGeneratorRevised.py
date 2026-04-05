@@ -5,8 +5,8 @@ import KeypointExtractor as kpExtract
 import time
 
 listOfPrimeVideoPath = []
-datasetPlayer = 281
-fileIndex = 278
+datasetPlayer = 261
+fileIndex = 241
 
 # Function to crop the hand from the frame with padding
 def crop_hand_with_padding(frame, landmarks, padding=40):
@@ -34,7 +34,7 @@ def generateVideo():
     cap.set(cv2.CAP_PROP_FPS, 30)
 
     dataset_path = "dataset-Elvin"
-    letters = ['O']
+    letters = ['M']
     
     for letter in letters:
         os.makedirs(f"{dataset_path}/{letter}", exist_ok=True)
