@@ -2,7 +2,7 @@ import os
 import KeypointExtractor as kpExtract
 
 DATASET_PATH = "dataset-Elvin"
-LETTERS = ['O']  # adjust as needed
+LETTERS = ['I']  # adjust as needed
 
 def extract_all_keypoints():
     for letter in LETTERS:
