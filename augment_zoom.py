@@ -8,13 +8,9 @@ Directory structure expected:
         A/
             A_001.mp4
             A_001-prime.csv
-            A_001-prime.mp4          ← skipped (raw uncropped)
-            A_001-flipped.mp4        ← skipped (already augmented)
-            A_001-flipped-prime.csv  ← skipped
-            ...
-        B/
-            ...
-        hello/
+            A_001-prime.mp4          <- skipped (raw uncropped, used as zoom out source)
+            A_001-flipped.mp4        <- skipped unless --include-flipped
+            A_001-flipped-prime.csv  <- skipped unless --include-flipped
             ...
 
 Outputs are saved alongside originals:
@@ -24,17 +20,16 @@ Outputs are saved alongside originals:
     A_001-zoom85-prime.csv
 
 Usage:
+    python augment_zoom.py --dataset /path/to/dataset
     python augment_zoom.py --dataset /path/to/dataset --zoom 0.85 1.15
-    python augment_zoom.py --dataset /path/to/dataset          # uses default zoom levels
     python augment_zoom.py --dataset /path/to/dataset --include-flipped
+    python augment_zoom.py --dataset /path/to/dataset --replace   # overwrite existing files
 """
 
-import os
-import ast
 import argparse
+import re
 import cv2
 import numpy as np
-import pandas as pd
 from pathlib import Path
 
 
@@ -44,33 +39,89 @@ DEFAULT_ZOOM_FACTORS = [0.85, 0.90, 1.10, 1.15]
 
 # ── Core functions ─────────────────────────────────────────────────────────────
 
+def _find_crop_center(src_path: Path, prime_path: Path) -> tuple:
+    """
+    Use template matching on the first frame to find where the 224x224 crop
+    sits inside the prime video. Returns (cx, cy) pixel center in prime-video space.
+    Falls back to prime video center if matching fails.
+    """
+    cap_src   = cv2.VideoCapture(str(src_path))
+    cap_prime = cv2.VideoCapture(str(prime_path))
+
+    ret_s, src_frame   = cap_src.read()
+    ret_p, prime_frame = cap_prime.read()
+
+    cap_src.release()
+    cap_prime.release()
+
+    if not ret_s or not ret_p:
+        Wp = int(cv2.VideoCapture(str(prime_path)).get(cv2.CAP_PROP_FRAME_WIDTH))
+        Hp = int(cv2.VideoCapture(str(prime_path)).get(cv2.CAP_PROP_FRAME_HEIGHT))
+        return Wp // 2, Hp // 2
+
+    Hp, Wp = prime_frame.shape[:2]
+
+    # Template matching only works if prime is larger than src
+    if prime_frame.shape[0] < src_frame.shape[0] or prime_frame.shape[1] < src_frame.shape[1]:
+        return Wp // 2, Hp // 2
+
+    result = cv2.matchTemplate(prime_frame, src_frame, cv2.TM_CCOEFF_NORMED)
+    _, _, _, max_loc = cv2.minMaxLoc(result)
+
+    # max_loc is top-left corner of match; convert to center
+    cx = max_loc[0] + src_frame.shape[1] // 2
+    cy = max_loc[1] + src_frame.shape[0] // 2
+    return cx, cy
+
+
 def zoom_video(src_path: Path, dst_path: Path, s: float, prime_path: Path = None) -> None:
     """
     Zoom a video by factor s, centered on the frame.
 
     s > 1.0 -> zoom in:  crop int(W/s) x int(H/s) from center of src, resize to 224x224
-    s < 1.0 -> zoom out: crop int(224/s) x int(224/s) from center of prime video, resize to 224x224
+    s < 1.0 -> zoom out: crop int(224/s) x int(224/s) from prime video, resize to 224x224
+                         The crop center is found via template matching so the hand stays
+                         correctly positioned regardless of where the 224x224 was cropped from.
                          Falls back to black padding if prime_path is None or missing.
     s = 1.0 -> no-op copy from src
     """
     TARGET_W, TARGET_H = 224, 224
 
     if s < 1.0 and prime_path is not None and prime_path.exists():
-        # Zoom out using prime video — extract a larger region to get real surrounding pixels
-        cap = cv2.VideoCapture(str(prime_path))
-        Wp  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        Hp  = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
+        cap_prime = cv2.VideoCapture(str(prime_path))
+        Wp  = int(cap_prime.get(cv2.CAP_PROP_FRAME_WIDTH))
+        Hp  = int(cap_prime.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps = cap_prime.get(cv2.CAP_PROP_FPS)
+        cap_prime.release()
 
-        # Region size to crop from prime video: 224/s x 224/s, centered
+        # Find where the 224x224 crop actually lives in the prime video
+        cx, cy = _find_crop_center(src_path, prime_path)
+
+        # Region to crop from prime: (224/s) x (224/s), centered on (cx, cy)
         region_w = int(TARGET_W / s)
         region_h = int(TARGET_H / s)
-        cx, cy   = Wp // 2, Hp // 2
-        x1 = max(0, cx - region_w // 2)
-        y1 = max(0, cy - region_h // 2)
-        x2 = min(Wp, x1 + region_w)
-        y2 = min(Hp, y1 + region_h)
 
+        x1 = cx - region_w // 2
+        y1 = cy - region_h // 2
+        x2 = x1 + region_w
+        y2 = y1 + region_h
+
+        # Shift the window if it goes out of bounds (keeps the region full-size)
+        if x1 < 0:
+            x2 -= x1
+            x1 = 0
+        if y1 < 0:
+            y2 -= y1
+            y1 = 0
+        if x2 > Wp:
+            x1 -= (x2 - Wp)
+            x2 = Wp
+        if y2 > Hp:
+            y1 -= (y2 - Hp)
+            y2 = Hp
+        x1, y1 = max(0, x1), max(0, y1)
+
+        cap = cv2.VideoCapture(str(prime_path))
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(str(dst_path), fourcc, fps, (TARGET_W, TARGET_H))
 
@@ -79,7 +130,7 @@ def zoom_video(src_path: Path, dst_path: Path, s: float, prime_path: Path = None
             if not ret:
                 break
             cropped = frame[y1:y2, x1:x2]
-            resized  = cv2.resize(cropped, (TARGET_W, TARGET_H), interpolation=cv2.INTER_LINEAR)
+            resized = cv2.resize(cropped, (TARGET_W, TARGET_H), interpolation=cv2.INTER_LINEAR)
             writer.write(resized)
 
         cap.release()
@@ -106,7 +157,6 @@ def zoom_video(src_path: Path, dst_path: Path, s: float, prime_path: Path = None
             return cv2.resize(cropped, (W, H), interpolation=cv2.INTER_LINEAR)
 
     elif s < 1.0:
-        # Fallback: shrink + black padding (prime video unavailable)
         small_w = int(W * s)
         small_h = int(H * s)
         pad_x = (W - small_w) // 2
@@ -132,14 +182,11 @@ def zoom_video(src_path: Path, dst_path: Path, s: float, prime_path: Path = None
     writer.release()
 
 
-
 def zoom_keypoints(src_path: Path, dst_path: Path, s: float) -> None:
     """
     Zoom keypoints by factor s around center (0.5, 0.5).
-    Reads line-by-line with regex to handle both quoted and unquoted [x, y] formats,
-    since some CSVs in the dataset are written without field quoting.
+    Reads line-by-line with regex to handle both quoted and unquoted [x, y] formats.
     """
-    import re
     pattern = re.compile(r"\[\s*([\d.]+)\s*,\s*([\d.]+)\s*\]")
 
     out_lines = []
@@ -160,14 +207,21 @@ def zoom_keypoints(src_path: Path, dst_path: Path, s: float) -> None:
         f.write("\n".join(out_lines))
 
 
-def augment_record(video_path: Path, zoom_factors: list, verbose: bool = True) -> None:
+def augment_record(
+    video_path: Path,
+    zoom_factors: list,
+    replace: bool = False,
+    verbose: bool = True,
+) -> None:
     """
     Augment a single base record (video + its paired CSV) with all zoom factors.
-    Expects:  {stem}.mp4        — 224x224 cropped video (used by model, zoom in source)
-              {stem}-prime.csv  — keypoints CSV (used by model)
-              {stem}-prime.mp4  — raw uncropped video (zoom out source, NOT itself augmented)
-    Outputs:  {stem}-zoom{factor}.mp4
-              {stem}-zoom{factor}-prime.csv
+
+    Args:
+        video_path:   Path to the base {stem}.mp4
+        zoom_factors: List of zoom scale factors to apply
+        replace:      If True, overwrite existing augmented files.
+                      If False, skip factors where both output files already exist.
+        verbose:      Print progress per file.
     """
     stem      = video_path.stem
     folder    = video_path.parent
@@ -184,29 +238,33 @@ def augment_record(video_path: Path, zoom_factors: list, verbose: bool = True) -
 
     for s in zoom_factors:
         factor_tag = f"zoom{int(round(s * 100))}"
+        out_video  = folder / f"{stem}-{factor_tag}.mp4"
+        out_csv    = folder / f"{stem}-{factor_tag}-prime.csv"
 
-        out_video = folder / f"{stem}-{factor_tag}.mp4"
-        out_csv   = folder / f"{stem}-{factor_tag}-prime.csv"
+        already_exists = out_video.exists() and out_csv.exists()
 
-        if out_video.exists() and out_csv.exists():
+        if already_exists and not replace:
             if verbose:
-                print(f"  [EXISTS] {stem}-{factor_tag} — skipping")
+                print(f"  [SKIP]   {stem}-{factor_tag} — already exists (use --replace to overwrite)")
             continue
 
-        source = "prime" if s < 1.0 and has_prime else "cropped"
-        if verbose:
-            print(f"  -> {stem}-{factor_tag}  (s={s}, source={source})")
+        if already_exists and replace:
+            out_video.unlink()
+            out_csv.unlink()
+            if verbose:
+                print(f"  [REPLACE] {stem}-{factor_tag}  (s={s})")
+        else:
+            if verbose:
+                source = "prime" if s < 1.0 and has_prime else "cropped"
+                print(f"  [NEW]     {stem}-{factor_tag}  (s={s}, source={source})")
 
         zoom_video(video_path, out_video, s, prime_path=prime_vid if has_prime else None)
         zoom_keypoints(csv_path, out_csv, s)
 
 
+# ── Helpers ────────────────────────────────────────────────────────────────────
 
 def is_base_record(path: Path) -> bool:
-    """
-    True if the file is a base video record (not a derivative/augmented file).
-    Base record: ends with .mp4 and stem contains no '-' separator variants.
-    """
     name = path.name
     return (
         name.endswith(".mp4")
@@ -217,7 +275,6 @@ def is_base_record(path: Path) -> bool:
 
 
 def is_flipped_record(path: Path) -> bool:
-    """True if the file is the flipped variant of a base record."""
     name = path.name
     return (
         name.endswith(".mp4")
@@ -231,8 +288,9 @@ def is_flipped_record(path: Path) -> bool:
 
 def augment_dataset(
     dataset_root: str,
-    zoom_factors: list[float] = DEFAULT_ZOOM_FACTORS,
+    zoom_factors: list = DEFAULT_ZOOM_FACTORS,
     include_flipped: bool = False,
+    replace: bool = False,
     verbose: bool = True,
 ) -> None:
     """
@@ -242,6 +300,7 @@ def augment_dataset(
         dataset_root:    Path to the root dataset directory.
         zoom_factors:    List of zoom scale factors to apply.
         include_flipped: Also zoom the flipped variants.
+        replace:         Overwrite existing augmented files instead of skipping.
         verbose:         Print progress.
     """
     root = Path(dataset_root)
@@ -249,34 +308,54 @@ def augment_dataset(
         raise FileNotFoundError(f"Dataset root not found: {root}")
 
     class_dirs = sorted([d for d in root.iterdir() if d.is_dir()])
-    print(f"Found {len(class_dirs)} classes: {[d.name for d in class_dirs]}\n")
+    mode_label = "REPLACE mode" if replace else "SKIP mode"
+    print(f"Found {len(class_dirs)} classes: {[d.name for d in class_dirs]}")
+    print(f"Zoom factors: {zoom_factors}  |  {mode_label}\n")
 
-    total_records = 0
-    total_augmented = 0
+    total_records   = 0
+    total_new       = 0
+    total_replaced  = 0
+    total_skipped   = 0
 
     for class_dir in class_dirs:
         videos = sorted(class_dir.glob("*.mp4"))
 
         base_records    = [v for v in videos if is_base_record(v)]
         flipped_records = [v for v in videos if is_flipped_record(v)] if include_flipped else []
+        targets         = base_records + flipped_records
 
-        targets = base_records + flipped_records
         print(f"[{class_dir.name}] {len(base_records)} base records"
               + (f" + {len(flipped_records)} flipped" if include_flipped else ""))
 
         for video_path in targets:
             if verbose:
                 print(f"  Processing: {video_path.name}")
-            augment_record(video_path, zoom_factors, verbose=verbose)
+
+            # Count outcomes for summary
+            stem   = video_path.stem
+            folder = video_path.parent
+            for s in zoom_factors:
+                tag       = f"zoom{int(round(s * 100))}"
+                out_video = folder / f"{stem}-{tag}.mp4"
+                out_csv   = folder / f"{stem}-{tag}-prime.csv"
+                exists    = out_video.exists() and out_csv.exists()
+                if exists and replace:
+                    total_replaced += 1
+                elif exists:
+                    total_skipped += 1
+                else:
+                    total_new += 1
+
+            augment_record(video_path, zoom_factors, replace=replace, verbose=verbose)
             total_records += 1
-            total_augmented += len(zoom_factors)
 
         print()
 
-    print("─" * 50)
-    print(f"Done. {total_records} records processed.")
-    print(f"      {total_augmented} augmented files generated.")
-    print(f"      Each record now has {1 + len(zoom_factors)} versions (original + zooms).")
+    print("─" * 55)
+    print(f"Done.  {total_records} records processed.")
+    print(f"       {total_new} new files generated.")
+    print(f"       {total_replaced} files replaced.")
+    print(f"       {total_skipped} files skipped (already existed).")
 
 
 # ── CLI ────────────────────────────────────────────────────────────────────────
@@ -293,6 +372,10 @@ if __name__ == "__main__":
         "--include-flipped", action="store_true",
         help="Also apply zoom to flipped variants"
     )
+    parser.add_argument(
+        "--replace", action="store_true",
+        help="Overwrite existing augmented files. Default behaviour is to skip them."
+    )
     parser.add_argument("--quiet", action="store_true", help="Suppress per-file output")
     args = parser.parse_args()
 
@@ -300,5 +383,6 @@ if __name__ == "__main__":
         dataset_root=args.dataset,
         zoom_factors=args.zoom,
         include_flipped=args.include_flipped,
+        replace=args.replace,
         verbose=not args.quiet,
     )
