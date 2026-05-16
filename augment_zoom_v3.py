@@ -330,15 +330,8 @@ def augment_record(
             verbose=verbose,
         )
 
-        if not csv_written:
-            # Remove the video too, since the CSV failed
-            if out_video.exists():
-                out_video.unlink()
-            if out_csv.exists():
-                out_csv.unlink()
-
-            if verbose:
-                print(f"  [INFO]    {out_video.name} removed because keypoint CSV failed.")
+        if not csv_written and verbose:
+            print(f"  [INFO]    Video kept at {out_video.name}, CSV not written.")
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

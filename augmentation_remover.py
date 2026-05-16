@@ -3,7 +3,7 @@ import sys
 
 DATASET_DIR = "/Users/vinz/Documents/BINUS S2/SLR/handyTools/dataset-Elvin"
 
-patterns = ["-zoom85", "-zoom90", "-zoom110", "-zoom115"]
+patterns = ["-zoom85", "-zoom90"]
 
 to_delete = []
 
