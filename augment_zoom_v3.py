@@ -205,24 +205,11 @@ def zoom_keypoints_mediapipe(
     zoomed_video_path: Path,
     verbose: bool = True,
 ) -> bool:
-    """
-    Re-extract 21 hand keypoints from every frame of the already-zoomed video
-    using MediaPipe Hands. Writes one row per frame as comma-separated [x, y] pairs.
-
-    Returns True if all frames yielded a complete 21-landmark detection.
-    Returns False (and does NOT write the CSV) if any frame fails detection —
-    the caller is responsible for logging and skipping that augmentation.
-
-    Args:
-        dst_csv_path:      Output CSV path. Only written if all frames succeed.
-        zoomed_video_path: The already-written zoomed .mp4 to run MediaPipe on.
-    """
     cap       = cv2.VideoCapture(str(zoomed_video_path))
     hands     = _make_hands()
     out_lines = []
     frame_idx = 0
-
-    success = True
+    success   = True
 
     while True:
         ret, frame = cap.read()
@@ -232,14 +219,14 @@ def zoom_keypoints_mediapipe(
         detected = _extract_landmarks_from_frame(frame, hands)
 
         if detected is None:
-            # Any frame without a full 21-landmark detection → abort entire CSV
             if verbose:
                 print(f"  [SKIP CSV] No hand detected on frame {frame_idx} of "
                       f"{zoomed_video_path.name} — skipping CSV for this zoom factor")
             success = False
             break
 
-        out_lines.append(",".join(f"[{x}, {y}]" for x, y in detected))
+        # Each [x, y] pair is quoted so pandas reads it as one cell
+        out_lines.append(",".join(f'"[{x}, {y}]"' for x, y in detected))
         frame_idx += 1
 
     cap.release()
