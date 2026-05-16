@@ -110,6 +110,16 @@ def _extract_landmarks_from_frame(frame_bgr, hands_instance):
     landmarks = result.multi_hand_landmarks[0].landmark
     return [(round(lm.x, 4), round(lm.y, 4)) for lm in landmarks]
 
+def _has_clipped_landmarks(detected, tol=1e-4) -> bool:
+    """
+    Returns True if any landmark is pinned to the frame boundary (0.0 or 1.0),
+    which means the hand is partially out of frame.
+    """
+    return any(
+        abs(x) < tol or abs(x - 1.0) < tol or
+        abs(y) < tol or abs(y - 1.0) < tol
+        for x, y in detected
+    )
 
 # ── Video pipeline ─────────────────────────────────────────────────────────────
 
@@ -225,7 +235,15 @@ def zoom_keypoints_mediapipe(
             success = False
             break
 
-        # Each [x, y] pair is quoted so pandas reads it as one cell
+        # ── NEW: reject if any landmark is out of frame ──────────────────────
+        if _has_clipped_landmarks(detected):
+            if verbose:
+                print(f"  [SKIP CSV] Clipped landmarks on frame {frame_idx} of "
+                      f"{zoomed_video_path.name} — hand out of frame, skipping")
+            success = False
+            break
+        # ─────────────────────────────────────────────────────────────────────
+
         out_lines.append(",".join(f'"[{x}, {y}]"' for x, y in detected))
         frame_idx += 1
 
@@ -317,8 +335,15 @@ def augment_record(
             verbose=verbose,
         )
 
-        if not csv_written and verbose:
-            print(f"  [INFO]    Video kept at {out_video.name}, CSV not written.")
+        # ── NEW: clean up both files if keypoint extraction failed ────────────
+        if not csv_written:
+            if out_video.exists():
+                out_video.unlink()
+            if out_csv.exists():
+                out_csv.unlink()
+            if verbose:
+                print(f"  [CLEANUP] Removed {out_video.name} and CSV — bad augmentation.")
+        # ─────────────────────────────────────────────────────────────────────
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
